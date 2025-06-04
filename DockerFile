@@ -1,0 +1,42 @@
+# ETAPA DE CONSTRUCCIÓN (BUILD STAGE)
+# Usamos una imagen de Maven que incluye JDK para compilar tu aplicación
+FROM maven:3.8.8-openjdk-17 AS build
+
+# Establece el directorio de trabajo dentro del contenedor
+WORKDIR /app
+
+# Copia los archivos de configuración de Maven para descargar las dependencias
+COPY pom.xml .
+COPY .mvn .mvn
+
+# Descarga las dependencias (para aprovechar el cache de Docker)
+RUN mvn dependency:go-offline -B
+
+# Copia el resto del código fuente
+COPY src src
+
+# Construye la aplicación
+# Asumo que el nombre de tu JAR será similar a "Ev03DAW-0.0.1-SNAPSHOT.jar"
+# Puedes verificar el nombre exacto en tu archivo pom.xml o después de un mvn package local.
+# -DskipTests es opcional, pero acelera la construcción si no necesitas ejecutar tests en el build de Docker
+RUN mvn clean package -DskipTests
+
+# ETAPA DE PAQUETE/EJECUCIÓN (PACKAGE/RUN STAGE)
+# Usamos una imagen ligera de OpenJDK solo con JRE para la ejecución
+FROM openjdk:17-jre-slim
+
+# Establece el directorio de trabajo
+WORKDIR /app
+
+# Copia el JAR generado desde la etapa de construcción
+# Asegúrate de que el nombre del JAR aquí coincida con el que genera tu mvn package
+# Por ejemplo, si tu proyecto se llama "Ev03DAW" y la versión es "0.0.1-SNAPSHOT",
+# el JAR podría ser "Ev03DAW-0.0.1-SNAPSHOT.jar".
+# Reemplaza 'nombre-de-tu-aplicacion.jar' con el nombre real de tu JAR.
+COPY --from=build /app/target/Ev03DAW-0.0.1-SNAPSHOT.jar app.jar
+
+# Expone el puerto por defecto de Spring Boot (8080)
+EXPOSE 8080
+
+# Comando para ejecutar la aplicación cuando el contenedor se inicie
+ENTRYPOINT ["java", "-jar", "app.jar"]
